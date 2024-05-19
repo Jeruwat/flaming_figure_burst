@@ -1,0 +1,231 @@
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.Random;
+
+public class Main extends JFrame implements ActionListener {
+
+    private Timer timer;
+    private Timer carCounterTimer;
+    private int[] carPositions;
+    private int carSpeed = 5;
+    private int carCount = 10;
+    private int laneHeight = 70;
+    private int carHeight = 60;
+    private Image carImage;
+    private Image policeImage;
+    private cechyAut[] auta;
+    private JLabel carCountLabel;
+    private JLabel[] warehouseLabels;
+    private int totalBottles = 0; // Łączna liczba butelek
+    private double bottlePrice = 2.5; // Cena za 1 butelkę
+    private double totalEarnings = 0; // Łączne zarobki
+
+    private int carCounter = 10; // Początkowa liczba aut
+    private final int carCounterIncrement = 10; // Liczba aut do dodania co 30 sekund
+    private Policjant[] policjanci; // Tablica policjantów
+    private int policeCount = 5; // Liczba policjantów
+
+    public Main(cechyAut[] auta) {
+        this.auta = auta;
+
+        setTitle("Jeżdżące auta");
+        setExtendedState(JFrame.MAXIMIZED_BOTH); // Ustawienie na pełny ekran
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setResizable(false);
+
+        carPositions = new int[carCount];
+        for (int i = 0; i < carCount; i++) {
+            carPositions[i] = -i * 300;
+        }
+
+        carImage = new ImageIcon("car.png").getImage();
+        policeImage = new ImageIcon("police.png").getImage();
+
+        timer = new Timer(50, this);
+        timer.start();
+
+        // Dodanie etykiety na liczbę aut
+        carCountLabel = new JLabel("Liczba aut: " + carCounter);
+        carCountLabel.setForeground(Color.WHITE);
+        carCountLabel.setFont(new Font("Arial", Font.BOLD, 16));
+        JPanel panel = new JPanel();
+        panel.setBackground(new Color(135, 206, 250)); // Jasno niebieski kolor tła
+        panel.add(carCountLabel);
+        getContentPane().add(panel, BorderLayout.NORTH);
+
+        // Dodanie etykiet na liczby w magazynach
+        warehouseLabels = new JLabel[3];
+        for (int i = 0; i < warehouseLabels.length; i++) {
+            warehouseLabels[i] = new JLabel(getWarehouseName(i) + ": " + generateRandomNumber(1000, 10000));
+            warehouseLabels[i].setForeground(Color.WHITE);
+            warehouseLabels[i].setFont(new Font("Arial", Font.BOLD, 16));
+            panel.add(warehouseLabels[i]);
+        }
+
+        // Ustawienie timera do zwiększania liczby aut co 30 sekund
+        carCounterTimer = new Timer(30000, new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                carCounter += carCounterIncrement;
+                carCountLabel.setText("Liczba aut: " + carCounter);
+                // Zaktualizuj liczby w magazynach
+                for (int i = 0; i < warehouseLabels.length; i++) {
+                    warehouseLabels[i].setText(getWarehouseName(i) + ": " + generateRandomNumber(1000, 10000));
+                }
+                // Zaktualizuj dane dla każdego auta
+                for (cechyAut auto : auta) {
+                    auto.updateData();
+                }
+                repaint();
+            }
+        });
+        carCounterTimer.start();
+
+        // Ustawienie timera do zmiany ceny za butelkę co 30 sekund
+        Timer priceChangeTimer = new Timer(30000, new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                // Losowo zmień cenę za butelkę
+                Random random = new Random();
+                bottlePrice = 1 + random.nextDouble() * 4; // Cena od 1 do 5
+                // Wyświetl nową cenę
+                JOptionPane.showMessageDialog(null, "Nowa cena za butelkę: " + String.format("%.2f", bottlePrice) + " zł");
+            }
+        });
+        priceChangeTimer.start();
+
+        // Inicjalizacja policjantów z określonymi współrzędnymi
+        policjanci = new Policjant[policeCount];
+        for (int i = 0; i < policeCount; i++) {
+            int x = Integer.parseInt(JOptionPane.showInputDialog("Podaj współrzędną x dla Policjant " + (i + 1) + ":"));
+            int y = Integer.parseInt(JOptionPane.showInputDialog("Podaj współrzędną y dla Policjant " + (i + 1) + ":"));
+            policjanci[i] = new Policjant("Policjant " + (i + 1), 5 + i, policeImage.getWidth(null), policeImage.getHeight(null), x, y);
+        }
+
+        // Ustawienie timera do poruszania się policjantów co 200 ms
+        Timer policeTimer = new Timer(200, new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                for (Policjant policjant : policjanci) {
+                    policjant.move(getWidth(), getHeight());
+                }
+                checkCollisions();
+                repaint();
+            }
+        });
+        policeTimer.start();
+    }
+
+    // Metoda do sprawdzania kolizji z autami
+    private void checkCollisions() {
+        for (Policjant policjant : policjanci) {
+            Rectangle policeRect = new Rectangle(policjant.x, policjant.y, policjant.width, policjant.height);
+
+            for (int i = 0; i < carCount; i++) {
+                Rectangle carRect = new Rectangle(carPositions[i], laneHeight * (i + 1) - carHeight / 2, carImage.getWidth(null), carImage.getHeight(null));
+
+                if (policeRect.intersects(carRect)) {
+                    // Jeśli jest kolizja, usuń auto i zmniejsz liczbę aut
+                    for (int j = i; j < carCount - 1; j++) {
+                        carPositions[j] = carPositions[j + 1];
+                        auta[j] = auta[j + 1]; // Przesuń dane auta
+                    }
+                    carCount--;
+
+                    // Zaktualizuj etykietę z liczbą aut
+                    carCountLabel.setText("Liczba aut: " + carCount);
+                    break;
+                }
+            }
+        }
+    }
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        for (int i = 0; i < carCount; i++) {
+            carPositions[i] += carSpeed;
+            if (carPositions[i] > getWidth()) {
+                carPositions[i] = -carImage.getWidth(this);
+            }
+        }
+        repaint();
+    }
+
+    @Override
+    public void paint(Graphics g) {
+        super.paint(g);
+        for (int i = 0; i < carCount; i++) {
+            g.drawImage(carImage, carPositions[i], laneHeight * (i + 1) - carHeight / 2, this);
+
+            // Jeżeli samochód wyjechał za prawą krawędź okna, wybierz kolejny samochód
+            if (carPositions[i] > getWidth()) {
+                carPositions[i] = -carImage.getWidth(this);
+                if (i < auta.length) {
+                    auta[i] = new cechyAut(); // Losuj nowe dane dla samochodu
+                }
+            }
+
+            // Rysuj informacje o samochodzie nad pasem
+            if (i < auta.length) {
+                g.setColor(Color.BLACK);
+                g.drawString(auta[i].marka + " " + auta[i].numerRejestracyjny, carPositions[i] + 10, laneHeight * (i + 1) - carHeight / 2 - 10);
+            }
+        }
+
+        // Rysowanie policjantów
+        for (Policjant policjant : policjanci) {
+            g.drawImage(policeImage, policjant.x, policjant.y, this);
+            g.drawString(policjant.ranga + " (Moc: " + policjant.moc + ")", policjant.x, policjant.y - 10);
+        }
+
+        // Obliczanie łącznej liczby butelek
+        totalBottles = 0;
+        for (cechyAut auto : auta) {
+            totalBottles += auto.rokProdukcji; // Liczba butelek to rok produkcji
+        }
+
+        // Obliczanie łącznego zarobku
+        totalEarnings = totalBottles * bottlePrice;
+
+        // Wyświetlanie aktualnej łącznej liczby butelek
+        g.setColor(Color.WHITE);
+        g.setFont(new Font("Arial", Font.BOLD, 16));
+        g.drawString("Łączna liczba butelek: " + totalBottles, 20, 50);
+        g.drawString("Łączne zarobki: " + String.format("%.2f", totalEarnings) + " zł", 20, 70);
+    }
+
+    private String getWarehouseName(int index) {
+        switch (index) {
+            case 0:
+                return "Warszawa";
+            case 1:
+                return "Gdańsk";
+            case 2:
+                return "Wrocław";
+            default:
+                return "";
+        }
+    }
+
+    private int generateRandomNumber(int min, int max) {
+        Random random = new Random();
+        return random.nextInt(max - min + 1) + min;
+    }
+
+    public static void main(String[] args) {
+        cechyAut[] auta = new cechyAut[10];
+        for (int i = 0; i < auta.length; i++) {
+            auta[i] = new cechyAut();
+        }
+
+        SwingUtilities.invokeLater(() -> {
+            Main main = new Main(auta);
+            main.setVisible(true);
+        });
+    }
+}
+
+
+
